@@ -1,0 +1,2 @@
+Calculadora de Proyección Mensual — versión web
+Abre index.html en un navegador moderno. Para que la consulta de tipo de cambio funcione con mayor fiabilidad, publica este archivo en un alojamiento HTTPS estático (por ejemplo GitHub Pages) o sírvelo desde un servidor web. La tasa se consulta desde open.er-api.com.

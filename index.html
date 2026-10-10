@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#103b63">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>Calculadora de Proyección Mensual</title>
+<style>
+:root{color-scheme:light;--navy:#103b63;--blue:#1769aa;--bg:#f3f6fa;--muted:#5b6877}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#172433}
+main{max-width:520px;margin:0 auto;padding:24px 18px 36px}
+header{padding:8px 0 20px}h1{font-size:clamp(26px,7vw,34px);line-height:1.12;color:var(--navy);margin:0 0 10px}
+header p{margin:0;color:var(--muted);line-height:1.5}
+.card{background:white;border-radius:20px;padding:20px;margin:12px 0;box-shadow:0 8px 26px #102d4a0c}
+.date{font-size:14px;color:var(--muted);margin:0 0 20px}
+label{display:block;font-weight:650;font-size:14px;margin:16px 0 7px}
+input{width:100%;font:inherit;font-size:18px;padding:13px 14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#172433}
+input:focus{outline:3px solid #1769aa2b;border-color:var(--blue)}
+.rateRow{display:flex;align-items:center;gap:10px}.rate{font-weight:750;color:var(--navy);font-size:17px;flex:1;overflow-wrap:anywhere}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:13px 15px;cursor:pointer}
+.refresh{background:#eaf2fa;color:var(--navy);font-size:14px}
+.calculate{width:100%;background:var(--blue);color:#fff;margin-top:20px;font-size:16px}
+.result{background:var(--navy);color:white;padding:22px;border-radius:18px;margin-top:16px}
+.result small{opacity:.8;display:block}.total{font-size:clamp(29px,8vw,38px);font-weight:800;letter-spacing:-.6px;overflow-wrap:anywhere;margin:5px 0 16px}
+.details{white-space:pre-line;line-height:1.65;font-size:14px;color:#e7eef6}
+.status{font-size:12px;color:var(--muted);line-height:1.5;margin:12px 2px}
+.error{color:#a12626}.foot{font-size:12px;color:var(--muted);line-height:1.5;margin:18px 2px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Calculadora de<br>Proyección Mensual</h1><p>Proyecta tu cantidad al cierre del mes y conviértela a pesos mexicanos.</p></header>
+<section class="card">
+<p class="date" id="dateInfo">Calculando fecha…</p>
+<label for="amount">Cantidad acumulada (en dólares USD)</label>
+<input id="amount" type="number" min="0" step="any" inputmode="decimal" placeholder="Ej. 1250.50">
+<label>Tipo de cambio USD/MXN</label>
+<div class="rateRow"><div class="rate" id="rateText">Consultando por internet…</div><button class="refresh" id="refresh">Actualizar</button></div>
+<label for="override">Tipo de cambio alternativo (opcional)</label>
+<input id="override" type="number" min="0" step="any" inputmode="decimal" placeholder="Deja vacío para usar el automático">
+<button class="calculate" id="calculate">CALCULAR PROYECCIÓN</button>
+<div class="result" aria-live="polite">
+<small>Proyección estimada en pesos mexicanos</small>
+<div class="total" id="result">$—</div>
+<div class="details" id="details">Ingresa la cantidad y pulsa Calcular.</div>
+</div>
+<p class="status" id="status">El tipo de cambio se consulta en línea.</p>
+</section>
+<p class="foot">El cálculo usa los días transcurridos del mes incluyendo hoy. El tipo de cambio es informativo y puede diferir del aplicado por bancos o casas de cambio. Necesitas conexión a internet para actualizarlo.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let exchangeRate=null;
+const money=(n,currency='MXN')=>new Intl.NumberFormat('es-MX',{style:'currency',currency,maximumFractionDigits:2}).format(n);
+function updateDate(){const now=new Date();const day=now.getDate();const days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();$('dateInfo').textContent=`Hoy: ${new Intl.DateTimeFormat('es-MX',{dateStyle:'long'}).format(now)} • Día ${day} de ${days}`;}
+async function fetchRate(){
+ $('rateText').textContent='Consultando…';$('status').textContent='Obteniendo tipo de cambio por internet…';$('status').classList.remove('error');
+ try{
+  const response=await fetch('https://open.er-api.com/v6/latest/USD',{cache:'no-store'});
+  if(!response.ok)throw new Error('Respuesta de red no válida');
+  const data=await response.json();
+  if(data.result!=='success'||!data.rates||!Number.isFinite(data.rates.MXN))throw new Error('Respuesta sin tipo de cambio');
+  exchangeRate=data.rates.MXN;
+  $('rateText').textContent=exchangeRate.toFixed(4)+' MXN/USD';
+  $('status').textContent='Tipo de cambio actualizado por internet. Puede diferir del tipo bancario.';
+ }catch(e){
+  $('rateText').textContent=exchangeRate?exchangeRate.toFixed(4)+' MXN/USD':'No disponible';
+  $('status').textContent='No se pudo consultar el tipo de cambio. Revisa tu conexión o introduce uno manualmente.';
+  $('status').classList.add('error');
+ }
+}
+function calculate(){
+ const amount=Number($('amount').value);
+ const raw=$('override').value.trim();
+ const rate=raw!==''?Number(raw):exchangeRate;
+ if($('amount').value.trim()===''||!Number.isFinite(amount)||amount<0){$('amount').focus();$('status').textContent='Ingresa una cantidad válida y positiva.';$('status').classList.add('error');return;}
+ if(!Number.isFinite(rate)||rate<=0){$('status').textContent='El tipo de cambio no está disponible. Actualiza o ingrésalo manualmente.';$('status').classList.add('error');return;}
+ const now=new Date(), elapsed=now.getDate(), monthDays=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+ const daily=amount/elapsed, projectedUsd=daily*monthDays, total=projectedUsd*rate;
+ $('result').textContent=money(total);
+ $('details').textContent=
+  `Cantidad ingresada: ${money(amount,'USD')}\nDías transcurridos (incluido hoy): ${elapsed}\nDías del mes: ${monthDays}\nPromedio diario: ${money(daily,'USD')}\nProyección al cierre: ${money(projectedUsd,'USD')}\nTipo de cambio aplicado: ${rate.toFixed(4)} MXN/USD`;
+ $('status').classList.remove('error');
+}
+$('refresh').addEventListener('click',fetchRate);
+$('calculate').addEventListener('click',calculate);
+$('amount').addEventListener('keydown',e=>{if(e.key==='Enter')calculate()});
+updateDate();fetchRate();
+</script>
+</body></html>
